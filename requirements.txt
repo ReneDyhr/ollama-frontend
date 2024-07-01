@@ -1,0 +1,12 @@
+beautifulsoup4
+Flask
+langchain
+langchain_community
+langchain_core
+langchain_text_splitters
+numpy
+qdrant_client
+Requests
+einops
+python-dotenv
+flask-cors

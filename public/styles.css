@@ -1,0 +1,220 @@
+#ai-floatingButton {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    background-color: #007BFF;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+#ai-floatingButton:hover {
+    background-color: #0056b3;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+#ai-searchModal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.ai-modal-content {
+    overflow: auto;
+    max-height: 60%;
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 600px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ai-close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.ai-close-button:hover,
+.ai-close-button:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+:root {
+    --background-color: #f9f9f9;
+    --text-color: #333;
+    --input-text: #000;
+    --input-background: #fff;
+    --input-border: #ddd;
+    --input-focus-border: #007BFF;
+    --button-background: #007BFF;
+    --button-text: #fff;
+    --button-hover-background: #0056b3;
+    --box-shadow: rgba(0, 0, 0, 0.1);
+    --box-shadow-hover: rgba(0, 0, 0, 0.2);
+}
+
+#ai-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.ai-theme-switch {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.ai-search-container h1 {
+    margin-top: 0;
+}
+
+.ai-search-container {
+    text-align: center;
+    margin-top: 50px;
+    margin-bottom: 20px;
+    max-width: 600px;
+    width: 90%;
+    padding: 40px 20px;
+    background: var(--input-background);
+    box-shadow: 0 4px 8px var(--box-shadow);
+    border-radius: 12px;
+    transition: box-shadow 0.3s ease;
+}
+
+.ai-modal-content .ai-search-container {
+    margin-top: 0;
+    margin-bottom: 0;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.ai-search-container:hover {
+    box-shadow: 0 8px 16px var(--box-shadow-hover);
+}
+
+.ai-modal-content .ai-search-container:hover {
+    box-shadow: none;
+}
+
+.ai-search-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.ai-search-container input[type="text"] {
+    width: 70%;
+    padding: 12px 20px;
+    font-size: 16px;
+    color: var(--input-text);
+    background-color: var(--input-background);
+    border: 1px solid var(--input-border);
+    border-radius: 50px;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.ai-search-container input[type="text"]:focus {
+    border-color: var(--input-focus-border);
+    outline: none;
+}
+
+.ai-search-container button {
+    padding: 12px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 50px;
+    background-color: var(--button-background);
+    color: var(--button-text);
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.ai-search-container button:hover {
+    background-color: var(--button-hover-background);
+    transform: translateY(-2px);
+}
+
+.ai-results-container {
+    width: 90%;
+    max-width: 800px;
+    padding: 20px;
+    margin-top: 20px;
+    background: var(--input-background);
+    box-shadow: 0 4px 8px var(--box-shadow);
+    border-radius: 12px;
+    transition: box-shadow 0.3s ease;
+}
+
+.ai-results-container:hover {
+    box-shadow: 0 8px 16px var(--box-shadow-hover);
+}
+
+#ai-results {
+    text-align: left;
+    line-height: 1.6;
+}
+
+.ai-results-container p {
+    margin: 10px 0;
+}
+
+.ai-results-container a {
+    color: var(--text-color);
+    text-decoration: underline;
+}
+
+.ai-results-container svg path,
+.ai-results-container svg rect{
+  fill: #FF6700;
+}
+
+
+.ai-results-container #ai-loader {
+    text-align: center;
+}
+
+body.dark {
+    --background-color: #1e1e1e;
+    --text-color: #f9f9f9;
+    --input-background: #333;
+    --input-text: #fff;
+    --input-border: #555;
+    --input-focus-border: #90caf9;
+    --button-background: #90caf9;
+    --button-hover-background: #42a5f5;
+    --button-text: #000;
+    --box-shadow: rgba(0, 0, 0, 0.7);
+    --box-shadow-hover: rgba(0, 0, 0, 0.9);
+}
