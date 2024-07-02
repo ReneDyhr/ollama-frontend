@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from langchain_community.embeddings import HuggingFaceEmbeddings
 import pickle
 import uuid
@@ -111,14 +112,15 @@ def upload():
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             
             docs = load_cached_documents(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            qdrant_client = QdrantClient(host=os.getenv('QDRANT_HOST'), port=6333)
 
             vectors = []
             payloads = []
             ids = []
+            urls = []
             for doc in docs:
                 vectors.append(doc.embedding)
                 payloads.append({"page_content": doc.page_content, "metadata": doc.metadata})
+                urls.append(doc.metadata["source"])
                 ids.append(str(uuid.uuid4()))  # Generate a valid UUID for each document
 
             # Check if the collection exists, and create if not
@@ -128,10 +130,27 @@ def upload():
             for vector in vectors:
                 max_vector = max(max_vector, len(vector))
 
-            qdrant_client.recreate_collection(
-                collection_name=collection_name,
-                vectors_config=models.VectorParams(size=max_vector, distance=models.Distance.COSINE)
-            )
+            if not qdrant_client.collection_exists(collection_name):
+                qdrant_client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=models.VectorParams(size=max_vector, distance=models.Distance.COSINE)
+                )
+
+            # Delete from qdrant if metadata.source matches the list of urls
+            if urls:
+                for url in urls:
+                    filter_ = Filter(
+                        must=[
+                            FieldCondition(
+                                key="metadata.source",
+                                match=MatchValue(value=url)
+                            )
+                        ]
+                    )
+                    qdrant_client.delete(
+                        collection_name=collection_name,
+                        points_selector=filter_
+                    )
 
             # Upload vectors to Qdrant
             qdrant_client.upload_collection(
