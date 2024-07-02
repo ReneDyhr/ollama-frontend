@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-
+import __main__
 load_dotenv()
 
 UPLOAD_FOLDER = 'uploads'
@@ -20,8 +20,6 @@ app = Flask(__name__, static_folder='public')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 CORS(app, origins="*")
 app.secret_key = '3be69c0ad309fd7fa7ae46a9342775321900a493dfc52192bb103965645052b5'
-
-CACHE_FILE = 'document_cache.pkl'
 
 class Document:
     def __init__(self, page_content, metadata, embedding=None):
@@ -166,3 +164,4 @@ def upload():
 
 if __name__ == '__main__':
     app.run(debug=os.getenv('DEBUG'), port=5050, host="0.0.0.0")
+__main__.Document = Document
