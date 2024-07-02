@@ -10,3 +10,4 @@ Requests
 einops
 python-dotenv
 flask-cors
+sentence-transformers
