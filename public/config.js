@@ -1,1 +1,1 @@
-const URL = 'http://localhost:5050';
+const SearchURL = 'http://localhost:5050';

@@ -16,9 +16,9 @@ function loadJS(url, callback) {
 }
 
 // Load the floating search CSS file
-loadCSS(URL + '/styles.css');
-loadJS(URL + '/drawdown.js');
-loadJS(URL + '/script.js');
+loadCSS(SearchURL + '/styles.css');
+loadJS(SearchURL + '/drawdown.js');
+loadJS(SearchURL + '/script.js');
 
 // Create floating button
 const floatingButton = document.createElement('div');

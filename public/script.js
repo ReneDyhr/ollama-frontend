@@ -21,7 +21,7 @@ function searchDocuments() {
         body: JSON.stringify({ "query": searchTerm })
     };
 
-    fetch(URL + '/query', options)
+    fetch(SearchURL + '/query', options)
         .then(response => response.json())
         .then(response => {
             loaderDiv.style.display = 'none'; // Hide loader
