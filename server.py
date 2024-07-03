@@ -95,6 +95,19 @@ def query():
     answer = answer_query(user_input)
     return jsonify({"response": answer})
 
+@app.route('/lookup', methods=['POST'])
+def lookup():
+    data = request.json
+    user_input = data.get('query', '')
+    if not user_input:
+        return jsonify({"error": "No query provided"}), 400
+
+    search_results = query_documents(user_input)
+    data = []
+    for doc in search_results:
+        data.append(doc.payload["page_content"])
+    return jsonify({"response": data})
+
 @app.route('/upload', methods=['POST'])
 def upload():
     if request.method == 'POST':
