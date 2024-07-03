@@ -49,6 +49,7 @@ def query_documents(query, top_k=5):
         collection_name=os.getenv('COLLECTION'),
         query_vector=query_embedding,
         limit=top_k,
+        score_threshold=0.6,
         search_params=models.SearchParams(hnsw_ef=128, exact=True)
     );
 
