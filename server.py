@@ -13,6 +13,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import __main__
 from sentence_transformers import CrossEncoder
+from interfaces.logging import Logging
 load_dotenv()
 
 UPLOAD_FOLDER = 'uploads'
@@ -53,7 +54,7 @@ def rerank_docs(query, retrieved_docs):
         scores = reranker_model.predict(query_and_docs)
         ranked_docs = sorted(list(zip(retrieved_docs, scores)), key=lambda x: x[1], reverse=True)
         filtered_docs = [doc for doc in ranked_docs if doc[1] >= 0.05]
-        return filtered_docs
+        return filtered_docs[:3]
     else:
         return retrieved_docs
 
@@ -199,6 +200,30 @@ def upload():
             os.remove(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
             return jsonify({"response": filename}), 201
+
+@app.route('/delete_by_source', methods=['POST'])
+def delete_by_source():
+    # Delete from qdrant if metadata.source matches the list of urls
+    data = request.json
+    urls = data.get('urls', [])
+    if urls:
+        for url in urls:
+            filter_ = Filter(
+                must=[
+                    FieldCondition(
+                        key="metadata.source",
+                        match=MatchValue(value=url)
+                    )
+                ]
+            )
+            qdrant_client.delete(
+                collection_name=os.getenv('COLLECTION'),
+                points_selector=filter_
+            )
+        return jsonify({"response": "Deleted"}), 201
+    return jsonify({"response": "No URLs provided"}), 400
+
+
 
 if __name__ == '__main__':
     app.run(debug=os.getenv('DEBUG'), port=5050, host="0.0.0.0")
