@@ -13,7 +13,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import __main__
 from sentence_transformers import CrossEncoder
-from interfaces.logging import Logging
+# from interfaces.logging import Logging
 load_dotenv()
 
 UPLOAD_FOLDER = 'uploads'
