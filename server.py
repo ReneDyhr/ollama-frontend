@@ -48,7 +48,7 @@ encode_kwargs={"normalize_embeddings": True})
 
 if os.getenv('DERANK') == "True":
     # Initialize reranker model
-    reranker_model = CrossEncoder(model_name="BAAI/bge-reranker-large", max_length=512)
+    reranker_model = CrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-4-v2", max_length=512)
 
 def rerank_docs(query, retrieved_docs):
     if os.getenv('DERANK') == "True":
