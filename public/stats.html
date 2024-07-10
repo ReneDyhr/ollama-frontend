@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .collapsible {
+            cursor: pointer;
+            background-color: #f4f4f4;
+        }
+        .content {
+            display: none;
+            overflow: hidden;
+            width: 200%;
+        }
+        .highlight {
+            background-color: #fff;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Log Viewer</h1>
+
+<table>
+    <col width=600><col width=600><col width=190><col width=190><col width=150>
+    <thead>
+        <tr>
+            <th>Process ID</th>
+            <th>Query</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Total Time</th>
+        </tr>
+    </thead>
+    <tbody id="processTableBody">
+        <!-- Process rows will be inserted here -->
+    </tbody>
+</table>
+
+<!-- The Modal -->
+<div id="myModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <p id="modalText"></p>
+    </div>
+</div>
+
+<script>
+
+    function formatTimestamp(timestamp) {
+        const date = new Date(timestamp * 1000); // Convert to milliseconds
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    function truncateText(text, length) {
+        if (text.length > length) {
+            return text.substring(0, length) + '...';
+        }
+        return text;
+    }
+
+    function renderLogs(logs) {
+        const tableBody = document.getElementById('processTableBody');
+        logs.forEach(log => {
+            const processRow = document.createElement('tr');
+            processRow.className = 'collapsible';
+            const processIdCell = document.createElement('td');
+            processIdCell.textContent = log.process_id;
+            const queryCell = document.createElement('td');
+            queryCell.textContent = truncateText(log.query, 200);
+            const startTimeCell = document.createElement('td');
+            startTimeCell.textContent = formatTimestamp(log.start_time);
+            const endTimeCell = document.createElement('td');
+            endTimeCell.textContent = formatTimestamp(log.end_time);
+            const totalTimeCell = document.createElement('td');
+            totalTimeCell.textContent = log.total_time.toFixed(2) + 's';
+            processRow.appendChild(processIdCell);
+            processRow.appendChild(queryCell);
+            processRow.appendChild(startTimeCell);
+            processRow.appendChild(endTimeCell);
+            processRow.appendChild(totalTimeCell);
+
+            const contentRow = document.createElement('tr');
+            const contentCell = document.createElement('td');
+            contentCell.colSpan = 2;
+            contentCell.className = 'content';
+            const jobsTable = document.createElement('table');
+            const jobsTableHead = document.createElement('thead');
+            const jobsHeaderRow = document.createElement('tr');
+            ['Job', 'Input', 'Output', 'Start Time', 'End Time', 'Total Time'].forEach(text => {
+                const th = document.createElement('th');
+                th.textContent = text;
+                jobsHeaderRow.appendChild(th);
+            });
+            jobsTableHead.appendChild(jobsHeaderRow);
+            jobsTable.appendChild(jobsTableHead);
+
+            const jobsTableBody = document.createElement('tbody');
+            log.jobs.forEach(job => {
+                const jobRow = document.createElement('tr');
+                ['job', 'input', 'output', 'start_time', 'end_time', 'total_time'].forEach(key => {
+                    const td = document.createElement('td');
+                    if (key === 'start_time' || key === 'end_time') {
+                        td.textContent = formatTimestamp(job[key]);
+                    } else if (key === 'total_time') {
+                        td.textContent = job[key].toFixed(2) + 's';
+                    } else if (key === 'input' || key === 'output') {
+                        td.textContent = truncateText(job[key], 200);
+                        td.style.cursor = 'pointer';
+                        td.addEventListener('click', function () {
+                            document.getElementById('modalText').innerHTML = job[key].replace(/\n/g, "<br />");
+                            document.getElementById('myModal').style.display = 'block';
+                        });
+                    } else {
+                        td.textContent = job[key];
+                    }
+                    jobRow.appendChild(td);
+                });
+                jobsTableBody.appendChild(jobRow);
+            });
+
+            jobsTable.appendChild(jobsTableBody);
+            contentCell.appendChild(jobsTable);
+            contentRow.appendChild(contentCell);
+
+            processRow.addEventListener('click', function () {
+                this.classList.toggle('active');
+                contentCell.classList.toggle('highlight');
+                if (contentCell.style.display === 'block') {
+                    contentCell.style.display = 'none';
+                } else {
+                    contentCell.style.display = 'block';
+                }
+                this.scrollIntoView({behavior: 'smooth', block: 'start'});
+            });
+
+            tableBody.appendChild(processRow);
+            tableBody.appendChild(contentRow);
+        });
+    }
+
+    // Modal functionality
+    var modal = document.getElementById('myModal');
+    var span = document.getElementsByClassName('close')[0];
+
+    span.onclick = function() {
+        modal.style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Get the logs from the endpoint and render them
+    fetch('/statistics')
+        .then(response => response.json())
+        .then(data => renderLogs(data.response));
+
+    // renderLogs(response);
+</script>
+
+</body>
+</html>

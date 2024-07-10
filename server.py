@@ -5,7 +5,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from langchain_community.embeddings import HuggingFaceEmbeddings
 import pickle
 import uuid
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, session, send_from_directory
 from interfaces.runpod import RunpodServerlessLLM
 from dotenv import load_dotenv
 import os
@@ -13,7 +13,8 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import __main__
 from sentence_transformers import CrossEncoder
-# from interfaces.logging import Logging
+from interfaces.logging import Logging
+import time
 load_dotenv()
 
 UPLOAD_FOLDER = 'uploads'
@@ -42,7 +43,8 @@ qdrant_client = QdrantClient(host=os.getenv('QDRANT_HOST'), port=6333)
 
 embedding_model = HuggingFaceEmbeddings(model_name="nomic-ai/nomic-embed-text-v1.5", model_kwargs={
     "trust_remote_code": True
-})
+},
+encode_kwargs={"normalize_embeddings": True})
 
 if os.getenv('DERANK') == "True":
     # Initialize reranker model
@@ -50,17 +52,21 @@ if os.getenv('DERANK') == "True":
 
 def rerank_docs(query, retrieved_docs):
     if os.getenv('DERANK') == "True":
-        query_and_docs = [(query, r.page_content) for r in retrieved_docs]
+        start_time = time.time()
+        query_and_docs = [(query.lower(), r.page_content) for r in retrieved_docs]
         scores = reranker_model.predict(query_and_docs)
         ranked_docs = sorted(list(zip(retrieved_docs, scores)), key=lambda x: x[1], reverse=True)
         filtered_docs = [doc for doc in ranked_docs if doc[1] >= 0.05]
-        return filtered_docs[:3]
+        end_time = time.time()
+        Logging(start_time=start_time, end_time=end_time, job="Rerank documents", input=query, output="\n\n---\n\n".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs[:2]]), process_id=session.get('process_id')).create()
+        return filtered_docs[:2]
     else:
         return retrieved_docs
 
 # Function to query relevant documents
 def query_documents(query, top_k=10):
     query_embedding = embedding_model.embed_query(query)
+    start_time = time.time()
     docs = qdrant_client.search(
         collection_name=os.getenv('COLLECTION'),
         query_vector=query_embedding,
@@ -68,6 +74,8 @@ def query_documents(query, top_k=10):
         score_threshold=0.6,
         search_params=models.SearchParams(hnsw_ef=128, exact=True)
     );
+    end_time = time.time()
+    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n---\n\n".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
 
     if len(docs) == 0:
         return []
@@ -90,7 +98,10 @@ ollama_model = RunpodServerlessLLM(
 def generate_answer(query, context_docs):
     context = "\n\n---\n\n".join([doc[0].page_content for doc in context_docs])
     full_prompt = f"Answer the question based only on the following context:\n\n{context}\n---\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer."
+    start_time = time.time()
     response = ollama_model.generate(prompts=[full_prompt])
+    end_time = time.time()
+    Logging(start_time=start_time, end_time=end_time, job="Generate answer", input=full_prompt, output=response.generations[0][0].text, process_id=session.get('process_id')).create()
     return response.generations[0][0].text
 
 # Function to handle the entire process: query the documents and generate an answer
@@ -111,6 +122,7 @@ def serve_static(path):
 
 @app.route('/query', methods=['POST'])
 def query():
+    session['process_id'] = Logging.generate_uuid()
     data = request.json
     user_input = data.get('query', '')
     if not user_input:
@@ -121,6 +133,7 @@ def query():
 
 @app.route('/lookup', methods=['POST'])
 def lookup():
+    session['process_id'] = Logging.generate_uuid()
     data = request.json
     user_input = data.get('query', '')
     if not user_input:
@@ -223,8 +236,11 @@ def delete_by_source():
         return jsonify({"response": "Deleted"}), 201
     return jsonify({"response": "No URLs provided"}), 400
 
-
+@app.route('/statistics', methods=['GET'])
+def statistics():
+    return jsonify({"response": Logging.get_all()})
 
 if __name__ == '__main__':
+    Logging.create_db_table()
     app.run(debug=os.getenv('DEBUG'), port=5050, host="0.0.0.0")
 __main__.Document = Document
