@@ -92,7 +92,7 @@ class Logging:
     def get_all():
         logs = []
         try:
-            rows = db.select("SELECT process_id FROM (SELECT process_id, id FROM logging ORDER BY id DESC ) GROUP BY process_id;")
+            rows = db.select("SELECT id, process_id FROM (SELECT process_id, id FROM logging ORDER BY id DESC ) GROUP BY process_id ORDER BY id DESC")
 
             # convert row objects to dictionary
             for i in rows:
