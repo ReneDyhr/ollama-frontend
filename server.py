@@ -58,7 +58,7 @@ def rerank_docs(query, retrieved_docs):
         ranked_docs = sorted(list(zip(retrieved_docs, scores)), key=lambda x: x[1], reverse=True)
         filtered_docs = [doc for doc in ranked_docs if doc[1] >= 0.05]
         end_time = time.time()
-        Logging(start_time=start_time, end_time=end_time, job="Rerank documents", input=query, output="\n\n-----\n\n".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs[:3]]), process_id=session.get('process_id')).create()
+        Logging(start_time=start_time, end_time=end_time, job="Rerank documents", input=query, output="\n\n-----".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs[:3]]), process_id=session.get('process_id')).create()
         return filtered_docs[:3]
     else:
         return retrieved_docs
@@ -75,7 +75,7 @@ def query_documents(query, top_k=10):
         search_params=models.SearchParams(hnsw_ef=128, exact=True)
     );
     end_time = time.time()
-    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n-----\n\n".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
+    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n-----".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
 
     if len(docs) == 0:
         return []
@@ -98,8 +98,8 @@ ollama_model = RunpodServerlessLLM(
 def generate_answer(query, context_docs):
     if len(context_docs) == 0:
         return "I am unable to find the answer, there is no context available."
-    context = "\n\n-----\n\n".join([doc[0].page_content for doc in context_docs])
-    full_prompt = f"Answer the question based only on the following context:\n\n{context}\n-----\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer and if there is no source, do not answer the question."
+    context = "\n\n-----".join([doc[0].page_content for doc in context_docs])
+    full_prompt = f"Answer the question based only on the following {len(context_docs)} contexts:\n\n{context}\n-----\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer and if there is no source, do not answer the question."
     start_time = time.time()
     response = ollama_model.generate(prompts=[full_prompt])
     end_time = time.time()
