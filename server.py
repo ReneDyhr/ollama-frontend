@@ -96,6 +96,8 @@ ollama_model = RunpodServerlessLLM(
 
 # Function to generate an answer using Ollama
 def generate_answer(query, context_docs):
+    if len(context_docs) == 0:
+        return "I am unable to find the answer, there is no context available."
     context = "\n\n-----\n\n".join([doc[0].page_content for doc in context_docs])
     full_prompt = f"Answer the question based only on the following context:\n\n{context}\n-----\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer and if there is no source, do not answer the question."
     start_time = time.time()
