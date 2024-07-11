@@ -41,25 +41,25 @@ def allowed_file(filename):
 # Initialize Qdrant client
 qdrant_client = QdrantClient(host=os.getenv('QDRANT_HOST'), port=6333)
 
-embedding_model = HuggingFaceEmbeddings(model_name="nomic-ai/nomic-embed-text-v1.5", model_kwargs={
+embedding_model = HuggingFaceEmbeddings(model_name=os.getenv('EMBEDDING_MODEL'), model_kwargs={
     "trust_remote_code": True
 },
 encode_kwargs={"normalize_embeddings": True})
 
-if os.getenv('DERANK') == "True":
+if os.getenv('RERANK') == "True":
     # Initialize reranker model
-    reranker_model = CrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-4-v2", max_length=512)
+    reranker_model = CrossEncoder(model_name=os.getenv('RERANK_MODEL'), max_length=512)
 
 def rerank_docs(query, retrieved_docs):
-    if os.getenv('DERANK') == "True":
+    if os.getenv('RERANK') == "True":
         start_time = time.time()
         query_and_docs = [(query.lower(), r.page_content) for r in retrieved_docs]
         scores = reranker_model.predict(query_and_docs)
         ranked_docs = sorted(list(zip(retrieved_docs, scores)), key=lambda x: x[1], reverse=True)
         filtered_docs = [doc for doc in ranked_docs if doc[1] >= 0.05]
         end_time = time.time()
-        Logging(start_time=start_time, end_time=end_time, job="Rerank documents", input=query, output="\n\n---\n\n".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs[:2]]), process_id=session.get('process_id')).create()
-        return filtered_docs[:2]
+        Logging(start_time=start_time, end_time=end_time, job="Rerank documents", input=query, output="\n\n-----\n\n".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs[:3]]), process_id=session.get('process_id')).create()
+        return filtered_docs[:3]
     else:
         return retrieved_docs
 
@@ -75,12 +75,12 @@ def query_documents(query, top_k=10):
         search_params=models.SearchParams(hnsw_ef=128, exact=True)
     );
     end_time = time.time()
-    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n---\n\n".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
+    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n-----\n\n".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
 
     if len(docs) == 0:
         return []
 
-    if os.getenv('DERANK') == "True":
+    if os.getenv('RERANK') == "True":
         results = rerank_docs(query, [Document(doc.payload["page_content"], doc.payload["metadata"], doc.vector) for doc in docs])
     else:
         documents = [Document(doc.payload["page_content"], doc.payload["metadata"], doc.vector) for doc in docs]
@@ -96,8 +96,8 @@ ollama_model = RunpodServerlessLLM(
 
 # Function to generate an answer using Ollama
 def generate_answer(query, context_docs):
-    context = "\n\n---\n\n".join([doc[0].page_content for doc in context_docs])
-    full_prompt = f"Answer the question based only on the following context:\n\n{context}\n---\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer."
+    context = "\n\n-----\n\n".join([doc[0].page_content for doc in context_docs])
+    full_prompt = f"Answer the question based only on the following context:\n\n{context}\n-----\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer and if there is no source, do not answer the question."
     start_time = time.time()
     response = ollama_model.generate(prompts=[full_prompt])
     end_time = time.time()
