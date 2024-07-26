@@ -25,10 +25,12 @@ CORS(app, origins="*")
 app.secret_key = '3be69c0ad309fd7fa7ae46a9342775321900a493dfc52192bb103965645052b5'
 
 class Document:
-    def __init__(self, page_content, metadata, embedding=None):
+    def __init__(self, page_content, metadata, embedding=None, uuid=None, splits=None):
+        self.uuid = uuid
         self.page_content = page_content
         self.metadata = metadata
         self.embedding = embedding
+        self.splits = splits
 
 def load_cached_documents(cache_file):
     with open(cache_file, 'rb') as f:
@@ -50,21 +52,24 @@ if os.getenv('RERANK') == "True":
     # Initialize reranker model
     reranker_model = CrossEncoder(model_name=os.getenv('RERANK_MODEL'), max_length=512)
 
-def rerank_docs(query, retrieved_docs):
+def rerank_docs(query, retrieved_docs, score = 0.1):
     if os.getenv('RERANK') == "True":
         start_time = time.time()
         query_and_docs = [(query.lower(), r.page_content) for r in retrieved_docs]
         scores = reranker_model.predict(query_and_docs)
         ranked_docs = sorted(list(zip(retrieved_docs, scores)), key=lambda x: x[1], reverse=True)
-        filtered_docs = [doc for doc in ranked_docs if doc[1] >= 0.05]
         end_time = time.time()
-        Logging(start_time=start_time, end_time=end_time, job="Rerank documents", input=query, output="\n\n-----".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs[:3]]), process_id=session.get('process_id')).create()
-        return filtered_docs[:3]
+        Logging(start_time=start_time, end_time=end_time, job="Rerank documents - Before Score", input=query, output="\n\n-----\n\n".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in ranked_docs]), process_id=session.get('process_id')).create()
+        start_time = time.time()
+        filtered_docs = [doc for doc in ranked_docs if doc[1] >= score]
+        end_time = time.time()
+        Logging(start_time=start_time, end_time=end_time, job="Rerank documents - After Score", input=query, output="\n\n-----\n\n".join([doc[0].page_content + "\nScore: " + str(doc[1]) for doc in filtered_docs]), process_id=session.get('process_id')).create()
+        return filtered_docs
     else:
         return retrieved_docs
 
 # Function to query relevant documents
-def query_documents(query, top_k=10):
+def query_documents(query, top_k=100):
     query_embedding = embedding_model.embed_query(query)
     start_time = time.time()
     docs = qdrant_client.search(
@@ -75,17 +80,32 @@ def query_documents(query, top_k=10):
         search_params=models.SearchParams(hnsw_ef=128, exact=True)
     );
     end_time = time.time()
-    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n-----".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
+    Logging(start_time=start_time, end_time=end_time, job="Query documents", input=query, output="\n\n-----\n\n".join([doc.payload["page_content"] for doc in docs]), process_id=session.get('process_id')).create()
 
     if len(docs) == 0:
         return []
 
     if os.getenv('RERANK') == "True":
-        results = rerank_docs(query, [Document(doc.payload["page_content"], doc.payload["metadata"], doc.vector) for doc in docs])
+        results = rerank_docs(query, [Document(page_content=doc.payload["page_content"], metadata=doc.payload["metadata"], embedding=doc.vector) for doc in docs])
     else:
-        documents = [Document(doc.payload["page_content"], doc.payload["metadata"], doc.vector) for doc in docs]
+        documents = [Document(page_content=doc.payload["page_content"], metadata=doc.payload["metadata"], embedding=doc.vector) for doc in docs]
         results = [(doc, 1.0) for doc in documents]
-    return results
+    
+    parent_ids = []
+    for doc in results:
+        if not doc[0].metadata["parent"] in parent_ids:
+            parent_ids.append(doc[0].metadata["parent"])
+
+    parents = []
+    for parent_id in parent_ids:
+        doc = qdrant_client.retrieve(
+            collection_name=os.getenv('COLLECTION') + "_parents",
+            ids=[parent_id]
+        )
+        parents.append(Document(doc[0].payload["page_content"], metadata=doc[0].payload["metadata"]))
+
+    results = rerank_docs(query, parents, 0.01)
+    return results[:2]
 
 # Initialize Ollama model
 # ollama_model = Ollama(model="llama3:8b")
@@ -98,8 +118,8 @@ ollama_model = RunpodServerlessLLM(
 def generate_answer(query, context_docs):
     if len(context_docs) == 0:
         return "I am unable to find the answer, there is no context available."
-    context = "\n\n-----".join([doc[0].page_content for doc in context_docs])
-    full_prompt = f"Answer the question based only on the following {len(context_docs)} contexts:\n\n{context}\n-----\n\nAnswer the question based on the above context: {query}\n\nProvide the source at the end of the every answer and if there is no source, do not answer the question."
+    context = "\n\n-----\n\n".join([doc[0].page_content for doc in context_docs])
+    full_prompt = f"Answer the question based only on the following {len(context_docs)} contexts:\n\n{context}\n-----\n\nAnswer the question based on the above context: {query}\n\nAlways provide the source link at the end of the answer and if there is no source, do not answer the question."
     start_time = time.time()
     response = ollama_model.generate(prompts=[full_prompt])
     end_time = time.time()
@@ -169,11 +189,20 @@ def upload():
             payloads = []
             ids = []
             urls = []
+            vectors_parents = []
+            payloads_parents = []
+            ids_parents = []
             for doc in docs:
-                vectors.append(doc.embedding)
-                payloads.append({"page_content": doc.page_content, "metadata": doc.metadata})
+                vectors_parents.append(doc.embedding)
+                payloads_parents.append({"page_content": doc.page_content, "metadata": doc.metadata})
+                ids_parents.append(doc.uuid)  # Generate a valid UUID for each document
+                for split in doc.splits:
+                    if not split.page_content or not split.metadata or not split.embedding:
+                        continue
+                    vectors.append(split.embedding)
+                    payloads.append({"page_content": split.page_content, "metadata": split.metadata})
+                    ids.append(split.uuid)
                 urls.append(doc.metadata["source"])
-                ids.append(str(uuid.uuid4()))  # Generate a valid UUID for each document
 
             # Check if the collection exists, and create if not
             collection_name = os.getenv('COLLECTION')
@@ -185,6 +214,12 @@ def upload():
             if not qdrant_client.collection_exists(collection_name):
                 qdrant_client.create_collection(
                     collection_name=collection_name,
+                    vectors_config=models.VectorParams(size=max_vector, distance=models.Distance.COSINE)
+                )
+                
+            if not qdrant_client.collection_exists(collection_name + "_parents"):
+                qdrant_client.create_collection(
+                    collection_name=collection_name + "_parents",
                     vectors_config=models.VectorParams(size=max_vector, distance=models.Distance.COSINE)
                 )
 
@@ -203,6 +238,10 @@ def upload():
                         collection_name=collection_name,
                         points_selector=filter_
                     )
+                    qdrant_client.delete(
+                        collection_name=collection_name + "_parents",
+                        points_selector=filter_
+                    )
 
             # Upload vectors to Qdrant
             qdrant_client.upload_collection(
@@ -210,6 +249,13 @@ def upload():
                 vectors=vectors,
                 payload=payloads,
                 ids=ids
+            )
+
+            qdrant_client.upload_collection(
+                collection_name=collection_name + "_parents",
+                vectors=vectors_parents,
+                payload=payloads_parents,
+                ids=ids_parents
             )
 
             os.remove(os.path.join(app.config['UPLOAD_FOLDER'], filename))
